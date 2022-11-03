@@ -1,9 +1,15 @@
+pub mod datapath;
 pub mod mips;
 
-use mips::cpu::Cpu;
+use datapath::Datapath;
+use mips::datapath::MipsDatapath;
 
 fn main() {
-    let mut cpu = Cpu::new();
+    let mut datapath = MipsDatapath::default();
 
-    cpu.run();
+    // println!("{:#?}", datapath.registers);
+    println!("PC: {}", datapath.get_register("pc").unwrap());
+    datapath.execute_instruction();
+    // println!("{:#?}", datapath.registers);
+    println!("PC: {}", datapath.get_register("pc").unwrap());
 }
