@@ -1,4 +1,4 @@
-use super::{memory::Memory, registers::Registers};
+use super::{control_signals::*, memory::Memory, registers::Registers};
 use crate::datapath::Datapath;
 
 #[derive(Default)]
@@ -25,19 +25,6 @@ pub struct MipsDatapath {
     data_result: u64,
 }
 
-#[derive(Default)]
-pub struct ControlSignals {
-    alu_control: u8,
-    alu_op: u8,
-    alu_src: u8,
-    branch: u8,
-    jump: u8,
-    mem_read: u8,
-    mem_to_reg: u8,
-    mem_write: u8,
-    mem_write_src: u8,
-    reg_dst: u8,
-    reg_write: u8,
 }
 
 impl Datapath for MipsDatapath {
@@ -114,16 +101,16 @@ impl MipsDatapath {
         match self.opcode {
             // R-type instructions (add, sub, and, or, slt, sltu)
             0 => {
-                self.signals.alu_op = 7;
-                self.signals.alu_src = 0;
-                self.signals.branch = 0;
-                self.signals.jump = 0;
-                self.signals.mem_read = 0;
-                self.signals.mem_to_reg = 0;
-                self.signals.mem_write = 0;
-                self.signals.mem_write_src = 0;
-                self.signals.reg_dst = 1;
-                self.signals.reg_write = 1;
+                self.signals.alu_op = AluOp::UseFunctField;
+                self.signals.alu_src = AluSrc::ReadRegister2;
+                self.signals.branch = Branch::NoBranch;
+                self.signals.jump = Jump::NoJump;
+                self.signals.mem_read = MemRead::NoRead;
+                self.signals.mem_to_reg = MemToReg::UseAlu;
+                self.signals.mem_write = MemWrite::NoWrite;
+                self.signals.mem_write_src = MemWriteSrc::PrimaryUnit;
+                self.signals.reg_dst = RegDst::Reg3;
+                self.signals.reg_write = RegWrite::YesWrite;
             }
             _ => panic!("Instruction not supported."),
         }
@@ -139,68 +126,69 @@ impl MipsDatapath {
 
     fn set_alu_control(&mut self) {
         self.signals.alu_control = match self.signals.alu_op {
-            0..=6 => self.signals.alu_op,
-            7 => match self.funct {
-                0b100000 => 0, // add
-                0b100010 => 1, // sub
-                0b100100 => 4, // and
-                0b100101 => 5, // or
-                0b101010 => 2, // slt
-                0b101011 => 3, // sltu
+            AluOp::Addition => AluControl::Addition,
+            AluOp::Subtraction => AluControl::Subtraction,
+            AluOp::SetOnLessThanSigned => AluControl::SetOnLessThanSigned,
+            AluOp::SetOnLessThanUnsigned => AluControl::SetOnLessThanUnsigned,
+            AluOp::And => AluControl::And,
+            AluOp::Or => AluControl::Or,
+            AluOp::LeftShift16 => AluControl::LeftShift16,
+            AluOp::UseFunctField => match self.funct {
+                0b100000 => AluControl::Addition,
+                0b100010 => AluControl::Subtraction,
+                0b100100 => AluControl::And,
+                0b100101 => AluControl::Or,
+                0b101010 => AluControl::SetOnLessThanSigned,
+                0b101011 => AluControl::SetOnLessThanUnsigned,
                 _ => panic!("Unsupported funct"),
             },
-            _ => panic!("Invalid ALUOp control signal"),
         };
     }
 
     fn alu(&mut self) {
         let input1 = self.read_data_1;
         let input2 = match self.signals.alu_src {
-            0 => self.read_data_2,
-            1 => self.sign_extend,
-            _ => panic!("Invalid ALUSrc control signal"),
+            AluSrc::ReadRegister2 => self.read_data_2,
+            AluSrc::ExtendedImmediate => self.sign_extend,
         };
 
         self.alu_result = match self.signals.alu_control {
-            0 => input1 + input2,
-            1 => input1 - input2,
-            2 => {
+            AluControl::Addition => input1 + input2,
+            AluControl::Subtraction => input1 - input2,
+            AluControl::SetOnLessThanSigned => {
                 if (input1 as i64) < (input2 as i64) {
                     1
                 } else {
                     0
                 }
             }
-            3 => {
+            AluControl::SetOnLessThanUnsigned => {
                 if input1 < input2 {
                     1
                 } else {
                     0
                 }
             }
-            4 => input1 & input2,
-            5 => input1 | input2,
-            6 => input2 << 16,
-            7 => !input1,
-            _ => panic!("Bad ALU control signal"),
+            AluControl::And => input1 & input2,
+            AluControl::Or => input1 | input2,
+            AluControl::LeftShift16 => input2 << 16,
+            AluControl::Not => !input1,
         }
     }
 
     fn register_write(&mut self) {
         self.data_result = match self.signals.mem_to_reg {
-            0 => self.alu_result,
-            1 => self.memory_data,
-            _ => panic!("Invalid MemToReg control signal"),
+            MemToReg::UseAlu => self.alu_result,
+            MemToReg::UseMemory => self.memory_data,
         };
 
-        if self.signals.reg_write == 0 {
+        if self.signals.reg_write == RegWrite::NoWrite {
             return;
         }
 
         let destination = match self.signals.reg_dst {
-            0 => self.rt as usize,
-            1 => self.rd as usize,
-            _ => panic!("Invalid RegDst control signal"),
+            RegDst::Reg2 => self.rt as usize,
+            RegDst::Reg3 => self.rd as usize,
         };
 
         self.registers.gpr[destination] = self.data_result;
