@@ -1,5 +1,7 @@
 pub mod datapath;
 pub mod mips;
+#[cfg(test)]
+pub mod tests;
 
 use datapath::Datapath;
 use mips::datapath::MipsDatapath;
