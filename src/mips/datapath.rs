@@ -25,6 +25,8 @@ pub struct MipsDatapath {
     data_result: u64,
 }
 
+fn error(message: &str) {
+    panic!("{}", message);
 }
 
 impl Datapath for MipsDatapath {
@@ -112,7 +114,7 @@ impl MipsDatapath {
                 self.signals.reg_dst = RegDst::Reg3;
                 self.signals.reg_write = RegWrite::YesWrite;
             }
-            _ => panic!("Instruction not supported."),
+            _ => error("Instruction not supported."),
         }
     }
 
@@ -140,7 +142,10 @@ impl MipsDatapath {
                 0b100101 => AluControl::Or,
                 0b101010 => AluControl::SetOnLessThanSigned,
                 0b101011 => AluControl::SetOnLessThanUnsigned,
-                _ => panic!("Unsupported funct"),
+                _ => {
+                    error("Unsupported funct");
+                    AluControl::Addition // Stub
+                }
             },
         };
     }
