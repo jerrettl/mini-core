@@ -23,6 +23,30 @@ pub struct MipsDatapath {
     alu_result: u64,
     memory_data: u64,
     data_result: u64,
+
+    current_stage: Stage,
+}
+
+#[derive(Default, Copy, Clone, Eq, PartialEq)]
+enum Stage {
+    #[default]
+    InstructionFetch,
+    InstructionDecode,
+    Execute,
+    Memory,
+    WriteBack,
+}
+
+impl Stage {
+    fn get_next_stage(current_stage: Stage) -> Stage {
+        match current_stage {
+            Stage::InstructionFetch => Stage::InstructionDecode,
+            Stage::InstructionDecode => Stage::Execute,
+            Stage::Execute => Stage::Memory,
+            Stage::Memory => Stage::WriteBack,
+            Stage::WriteBack => Stage::InstructionFetch,
+        }
+    }
 }
 
 fn error(message: &str) {
@@ -33,20 +57,69 @@ impl Datapath for MipsDatapath {
     fn execute_instruction(&mut self) {
         println!("Running an instruction!");
 
+        // If the last instruction has not finished, finish it instead.
+        if self.current_stage != Stage::InstructionFetch {
+            self.finish_instruction();
+            return;
+        }
+
         // IF
-        self.instruction_fetch();
+        self.stage_instruction_fetch();
 
         // ID
+        self.stage_instruction_decode();
+
+        // EX
+        self.stage_execute();
+
+        // MEM
+        self.stage_memory();
+
+        // WB
+        self.stage_writeback();
+    }
+
+    fn execute_stage(&mut self) {
+        match self.current_stage {
+            Stage::InstructionFetch => self.stage_instruction_fetch(),
+            Stage::InstructionDecode => self.stage_instruction_decode(),
+            Stage::Execute => self.stage_execute(),
+            Stage::Memory => self.stage_memory(),
+            Stage::WriteBack => self.stage_writeback(),
+        }
+
+        self.current_stage = Stage::get_next_stage(self.current_stage);
+    }
+
+    fn get_register(&self, register: &str) -> Option<u64> {
+        Some(self.registers[register])
+    }
+}
+
+impl MipsDatapath {
+    fn finish_instruction(&mut self) {
+        while self.current_stage != Stage::InstructionFetch {
+            self.execute_stage();
+        }
+    }
+
+    fn stage_instruction_fetch(&mut self) {
+        self.instruction_fetch();
+    }
+
+    fn stage_instruction_decode(&mut self) {
         self.instruction_decode();
         self.sign_extend();
         self.set_control_signals();
         self.read_registers();
         self.set_alu_control();
+    }
 
-        // EX
+    fn stage_execute(&mut self) {
         self.alu();
+    }
 
-        // MEM
+    fn stage_memory(&mut self) {
         /*
         if self.signals.mem_read == 1{
             self.memory_read();
@@ -56,21 +129,13 @@ impl Datapath for MipsDatapath {
             self.memory_write();
         }
         */
+    }
 
-        // WB
+    fn stage_writeback(&mut self) {
         self.register_write();
         self.set_pc();
     }
 
-    fn get_register(&self, register: &str) -> Option<u64> {
-        match register {
-            "pc" => Some(self.registers.pc),
-            _ => None,
-        }
-    }
-}
-
-impl MipsDatapath {
     fn instruction_fetch(&mut self) {
         // Load instruction
         self.instruction = self.memory.load_word(self.registers.pc);
