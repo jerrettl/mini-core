@@ -225,20 +225,8 @@ impl MipsDatapath {
         self.alu_result = match self.signals.alu_control {
             AluControl::Addition => input1 + input2,
             AluControl::Subtraction => input1 - input2,
-            AluControl::SetOnLessThanSigned => {
-                if (input1 as i64) < (input2 as i64) {
-                    1
-                } else {
-                    0
-                }
-            }
-            AluControl::SetOnLessThanUnsigned => {
-                if input1 < input2 {
-                    1
-                } else {
-                    0
-                }
-            }
+            AluControl::SetOnLessThanSigned => ((input1 as i64) < (input2 as i64)) as u64,
+            AluControl::SetOnLessThanUnsigned => (input1 < input2) as u64,
             AluControl::And => input1 & input2,
             AluControl::Or => input1 | input2,
             AluControl::LeftShift16 => input2 << 16,
