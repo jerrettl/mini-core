@@ -1,4 +1,5 @@
 // const BYTES_4K: usize = 4 * 1024;
+const CAPACITY: usize = 16;
 
 pub struct Memory {
     pub memory: Vec<u8>,
@@ -6,11 +7,9 @@ pub struct Memory {
 
 impl Default for Memory {
     fn default() -> Self {
-        const CAPACITY: usize = 16;
-
-        let memory: Vec<u8> = vec![0; CAPACITY];
-
-        Self { memory }
+        Self {
+            memory: vec![0; CAPACITY],
+        }
     }
 }
 
